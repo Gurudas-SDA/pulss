@@ -77,7 +77,7 @@ async function reassign(activityId) {
 
 async function remove() {
   const s = t.session;
-  if (!confirm(s.removeConfirm)) return;
+  if (!confirm(fill(s.removeConfirm, { date: fmtDateTime(session.startedAt) }))) return;
   const btn = q('#btn-delete');
   if (btn) btn.disabled = true;
   await deleteSession(session.id);
@@ -118,6 +118,9 @@ function renderSession(container) {
       ${stat(s.samples, val(x.sampleCount ?? samples.length))}
     </div>
     <div class="card">
+      <button id="btn-delete" class="btn danger" type="button">🗑 ${s.remove}</button>
+    </div>
+    <div class="card">
       <canvas id="ses-chart" class="chart session" aria-label="${s.pulse}"></canvas>
     </div>
     <div class="card stack">
@@ -127,7 +130,6 @@ function renderSession(container) {
           `<option value="${a.id}" ${a.id === x.activityId ? 'selected' : ''}>${escapeHtml(a.name)}</option>`).join('')}
       </select>
       <button id="btn-csv" class="btn" type="button">${s.exportCsv}</button>
-      <button id="btn-delete" class="btn danger" type="button">${s.remove}</button>
     </div>
   `;
   q('#ses-activity').addEventListener('change', (e) => reassign(e.target.value).catch(dbError));

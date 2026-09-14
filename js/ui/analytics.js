@@ -1,8 +1,8 @@
 // Analītika: aktivitāšu čipi → tendenču grafiks (vid./maks. pa sesijām) → statistikas kartīte → sesiju saraksts.
 // Izvēlētā aktivitāte un periods glabājas settings ('analyticsActivityId', 'analyticsPeriod').
 import { t, fill } from '../i18n.js';
-import { escapeHtml } from '../app.js';
-import { listActivities, listSessions, getSetting, setSetting } from '../db.js';
+import { escapeHtml, showToast } from '../app.js';
+import { listActivities, listSessions, getSetting, setSetting, deleteSession } from '../db.js';
 import { fmtDate, fmtDayMonth, fmtDateTime, fmtDuration } from '../format.js';
 import { drawLineChart } from '../charts.js';
 
@@ -21,6 +21,7 @@ let sessions = [];      // visas sesijas, jaunākās vispirms
 let activityId = ALL;
 let period = 'all';
 let onResize = null;
+let unbindDelete = null;
 
 function q(sel) { return root ? root.querySelector(sel) : null; }
 
@@ -98,16 +99,45 @@ function renderStats(done) {
     statHtml(s.change, change, changeSub);
 }
 
+// Sesijas rinda: saite uz ieraksta skatu + dzēšanas poga (poga nedrīkst būt <a> iekšā, tāpēc apvalks ir <div>).
 export function sessionRowHtml(x, { showActivity, name }) {
   const s = t.analytics;
   const orphan = x.status !== 'done';
   const stats = orphan
     ? s.unfinished
     : `${fmtDuration(x.durationSec)} · ${fill(s.rowStats, { avg: x.avgBpm ?? '—', max: x.maxBpm ?? '—' })}`;
-  return `<a class="session-row${orphan ? ' muted' : ''}" href="#session/${encodeURIComponent(x.id)}">` +
+  const id = escapeHtml(x.id);
+  return `<div class="session-row${orphan ? ' muted' : ''}">` +
+    `<a class="session-link" href="#session/${encodeURIComponent(x.id)}">` +
     `<span class="sr-main"><strong>${fmtDateTime(x.startedAt)}</strong>` +
     `${showActivity ? `<span class="label">${escapeHtml(name)}</span>` : ''}</span>` +
-    `<span class="sr-sub">${stats}</span></a>`;
+    `<span class="sr-sub">${stats}</span></a>` +
+    `<button class="icon-btn danger row-delete" type="button" data-id="${id}" data-started="${x.startedAt}"` +
+    ` title="${t.session.removeAria}" aria-label="${t.session.removeAria}">🗑</button></div>`;
+}
+
+// Viens deleģēts klausītājs sarakstam: 🗑 → confirm → deleteSession → toast → onDeleted(id).
+// Atgriež funkciju, kas klausītāju noņem (jāizsauc unmount).
+export function bindRowDelete(container, onDeleted) {
+  const handler = (e) => {
+    const btn = e.target.closest('.row-delete');
+    if (!btn || !container.contains(btn)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const id = btn.dataset.id;
+    const started = Number(btn.dataset.started);
+    if (!confirm(fill(t.session.removeConfirm, { date: fmtDateTime(started) }))) return;
+    btn.disabled = true;
+    deleteSession(id)
+      .then(() => { showToast(t.session.removed); return onDeleted(id); })
+      .catch((err) => {
+        console.error(err);
+        btn.disabled = false;
+        showToast(`${t.errors.dbFailed}: ${err.message || err}`);
+      });
+  };
+  container.addEventListener('click', handler);
+  return () => container.removeEventListener('click', handler);
 }
 
 function renderList(list) {
@@ -173,6 +203,10 @@ export function render(container) {
     period = v;
     setSetting('analyticsPeriod', v).catch(console.error);
   }));
+  unbindDelete = bindRowDelete(q('#an-list'), (id) => {
+    sessions = sessions.filter((x) => x.id !== id);
+    refresh();
+  });
   onResize = () => refresh();
   window.addEventListener('resize', onResize);
   load().catch((e) => {
@@ -185,5 +219,7 @@ export function unmount() {
   alive = false;
   if (onResize) window.removeEventListener('resize', onResize);
   onResize = null;
+  if (unbindDelete) unbindDelete();
+  unbindDelete = null;
   root = null;
 }

@@ -146,7 +146,8 @@ export const t = {
     nothingToExport: 'Sesijai nav paraugu.',
     csvHeader: 't_s;bpm;rr_ms',
     remove: 'Dzēst ierakstu',
-    removeConfirm: 'Dzēst šo ierakstu un tā paraugus? Šo nevar atsaukt.',
+    removeAria: 'Dzēst ierakstu',
+    removeConfirm: 'Dzēst ierakstu {date} un tā paraugus? Šo nevar atsaukt.',
     removed: 'Ieraksts dzēsts',
   },
 

@@ -4,12 +4,13 @@ import { listActivities, listSessions, getSetting, setSetting } from '../db.js';
 import { createClient, HrmClient } from '../ble.js';
 import { Recorder } from '../recorder.js';
 import { fmtDateTime } from '../format.js';
-import { sessionRowHtml } from './analytics.js';
+import { sessionRowHtml, bindRowDelete } from './analytics.js';
 
 const RECENT_N = 3;
 
 let alive = false;
 let root = null;
+let unbindDelete = null;
 let viewUnsubs = [];   // klienta notikumi → šis skats (atsaista unmount)
 let stateUnsubs = [];  // klienta notikumi → state (dzīvo, kamēr dzīvo klients)
 
@@ -291,6 +292,7 @@ export function render(container) {
   });
   q('#btn-connect').addEventListener('click', () => onConnectClick().catch(dbError));
   q('#btn-start').addEventListener('click', () => onStartClick());
+  unbindDelete = bindRowDelete(q('#recent-list'), () => fillRecent().catch(dbError));
 
   if (state.client) wireView(state.client);
   updateView();
@@ -306,5 +308,7 @@ export function unmount() {
   alive = false;
   unwireView();
   window.removeEventListener('pulss:installable', onInstallable);
+  if (unbindDelete) unbindDelete();
+  unbindDelete = null;
   root = null;
 }

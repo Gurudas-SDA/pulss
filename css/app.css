@@ -174,14 +174,18 @@ canvas.chart.session { height: 260px; }
 @media (max-width: 360px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
 .session-list { padding: 4px 12px; }
 .session-row {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  min-height: 56px; padding: 6px 0; border-bottom: 1px solid var(--border);
-  color: inherit; text-decoration: none;
+  display: flex; align-items: center; gap: 4px;
+  min-height: 56px; border-bottom: 1px solid var(--border);
 }
 .session-row:last-child { border-bottom: 0; }
+.session-link {
+  flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 6px 0; color: inherit; text-decoration: none;
+}
+.session-link:active { opacity: 0.7; }
 .session-row .sr-main { display: flex; flex-direction: column; min-width: 0; }
 .session-row .sr-sub { flex-shrink: 0; text-align: right; font-size: 0.85rem; color: var(--muted); white-space: nowrap; }
-.session-row:active { opacity: 0.7; }
+.session-row .row-delete { flex-shrink: 0; margin-right: -8px; }
 .muted { color: var(--muted); opacity: 0.65; }
 .ses-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px !important; }
 

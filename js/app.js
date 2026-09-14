@@ -3,7 +3,7 @@ import { t } from './i18n.js';
 import { openDb, getSetting } from './db.js';
 import { Recorder } from './recorder.js';
 
-export const APP_VERSION = '0.5.0';
+export const APP_VERSION = '0.5.1';
 
 // Globālais stāvoklis (vienkāršs objekts; skati to importē tieši).
 export const state = {

@@ -28,6 +28,7 @@ Pulss ir maza progresīvā tīmekļa lietotne (PWA) sirdsdarbības ierakstīšan
 2. **Sākt** — ieraksta ekrānā redzams pulss, vid./maks./min. un pēdējo 5 minūšu līkne. Ekrāns tiek turēts nomodā.
 3. **Beigt** — ieraksts tiek saglabāts un atveras tā skats (statistika, pulsa līkne, aktivitātes maiņa, CSV eksports, dzēšana).
 4. **Analītika** — pa aktivitātēm: vidējā/maksimālā pulsa tendence pa ierakstiem (x ass = ierakstu datumi), kopsavilkums (ierakstu skaits, kopā laiks, vid. pulss, augstākais maks., vid. ilgums, izmaiņa starp pirmajiem un pēdējiem 3 ierakstiem) un ierakstu saraksts; periods 30/90 dienas vai viss.
+5. **Dzēšana** — nevajadzīgu ierakstu var dzēst ar 🗑 pogu ierakstu sarakstā (Analītika vai "Pēdējie ieraksti" sākumā) vai paša ieraksta skatā zem statistikas; pirms dzēšanas lietotne prasa apstiprinājumu.
 
 Ja savienojums ar jostu ieraksta laikā zūd, lietotne mēģina to atjaunot pati; ieraksts turpinās. Nepabeigtu ierakstu (piem., pēc pārlūka aizvēršanas) sākuma ekrāns piedāvā pabeigt vai dzēst.
 
