@@ -149,7 +149,7 @@ export function render(container) {
   listActivities().then((acts) => {
     if (!alive) return;
     const a = acts.find((x) => x.id === rec.session.activityId);
-    q('#rec-activity').textContent = a ? a.name : t.home.unknownActivity;
+    q('#rec-activity').textContent = a ? a.name : t.common.unknownActivity;
   }).catch(console.error);
 }
 

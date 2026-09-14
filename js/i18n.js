@@ -6,6 +6,10 @@ export const DEFAULT_ACTIVITIES = ['Airēšana', 'Elpošana', 'Pietupieni', 'Jog
 export const t = {
   appName: 'Pulss',
 
+  common: {
+    unknownActivity: '(dzēsta aktivitāte)',
+  },
+
   nav: {
     home: 'Sākums',
     analytics: 'Analītika',
@@ -36,7 +40,11 @@ export const t = {
     orphanDeleted: 'Nepabeigtais ieraksts dzēsts',
     recordingBanner: 'Ieraksts turpinās',
     recordingOpen: 'Atvērt',
-    unknownActivity: '(dzēsta aktivitāte)',
+    installTitle: 'Instalēt lietotni sākuma ekrānā',
+    installHint: 'Atveras pilnekrānā un strādā bez interneta.',
+    installButton: 'Instalēt',
+    installDismiss: 'Vēlāk',
+    noBluetoothHint: 'Atver lietotni Google Chrome (Android) — citos pārlūkos jostu pievienot nevar.',
     recent: {
       title: 'Pēdējie ieraksti',
       all: 'Visa analītika →',
@@ -102,6 +110,7 @@ export const t = {
     totalTime: 'Kopā laiks',
     avgBpm: 'Vid. pulss',
     bestMax: 'Augstākais maks.',
+    avgDuration: 'Vid. ilgums',
     change: 'Izmaiņa',
     changeUp: '↑ {n} sitieni/min',
     changeDown: '↓ {n} sitieni/min',
@@ -112,7 +121,6 @@ export const t = {
     listEmpty: 'Nav ierakstu izvēlētajā periodā.',
     rowStats: 'vid. {avg} · maks. {max}',
     unfinished: 'nepabeigts',
-    unknownActivity: '(dzēsta aktivitāte)',
   },
 
   session: {
@@ -169,7 +177,6 @@ export const t = {
     about: 'Par',
     version: 'Versija',
     csvHeader: 'datums;sākums;beigas;ilgums_s;aktivitāte;vid_bpm;maks_bpm;min_bpm;paraugi',
-    csvUnknownActivity: '(dzēsta aktivitāte)',
   },
 
   update: {

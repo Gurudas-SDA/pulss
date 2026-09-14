@@ -31,7 +31,7 @@ async function exportCsv() {
       fmtTime(x.startedAt),
       x.endedAt ? fmtTime(x.endedAt) : '',
       x.durationSec,
-      actName.get(x.activityId) || s.csvUnknownActivity,
+      actName.get(x.activityId) || t.common.unknownActivity,
       x.avgBpm, x.maxBpm, x.minBpm, x.sampleCount,
     ].map(csvCell).join(';'));
   }

@@ -26,7 +26,7 @@ function q(sel) { return root ? root.querySelector(sel) : null; }
 
 function activityName(id) {
   const a = activities.find((x) => x.id === id);
-  return a ? a.name : t.analytics.unknownActivity;
+  return a ? a.name : t.common.unknownActivity;
 }
 
 function filtered() {
@@ -65,7 +65,7 @@ function drawChart(done) {
     ],
     xLabel,
     showDots: true,
-    xTicks: Math.min(4, Math.max(1, asc.length - 1)),
+    xTickValues: asc.map((x) => x.startedAt), // atzīmes tieši sesiju datumos
     emptyText: s.chartEmpty,
   });
 }
@@ -94,7 +94,8 @@ function renderStats(done) {
     statHtml(s.totalTime, fmtDuration(total)) +
     statHtml(s.avgBpm, avg) +
     statHtml(s.bestMax, Number.isFinite(best) ? best : '—') +
-    `<div class="span2"><span class="label">${s.change}</span><strong>${change}</strong><span class="label small">${changeSub}</span></div>`;
+    statHtml(s.avgDuration, fmtDuration(total / done.length)) +
+    statHtml(s.change, change, changeSub);
 }
 
 export function sessionRowHtml(x, { showActivity, name }) {

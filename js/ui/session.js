@@ -22,7 +22,7 @@ function q(sel) { return root ? root.querySelector(sel) : null; }
 
 function activityName(id) {
   const a = activities.find((x) => x.id === id);
-  return a ? a.name : t.home.unknownActivity;
+  return a ? a.name : t.common.unknownActivity;
 }
 
 function movingAverage(pts, win) {

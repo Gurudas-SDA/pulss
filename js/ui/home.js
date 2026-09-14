@@ -1,5 +1,5 @@
 import { t, fill } from '../i18n.js';
-import { state, showToast, escapeHtml } from '../app.js';
+import { state, showToast, escapeHtml, isStandalone } from '../app.js';
 import { listActivities, listSessions, getSetting, setSetting } from '../db.js';
 import { createClient, HrmClient } from '../ble.js';
 import { Recorder } from '../recorder.js';
@@ -106,7 +106,7 @@ async function checkOrphan() {
   const card = q('#orphan');
   card.innerHTML = `
     <p class="error">${escapeHtml(fill(s.orphanText, {
-      when: fmtDateTime(orphan.startedAt), activity: act ? act.name : s.unknownActivity,
+      when: fmtDateTime(orphan.startedAt), activity: act ? act.name : t.common.unknownActivity,
     }))}</p>
     <div class="stack">
       <button id="orphan-finish" class="btn btn-accent" type="button">${s.orphanFinish}</button>
@@ -134,7 +134,7 @@ async function fillRecent() {
   el.innerHTML = recent.length
     ? recent.map((x) => {
       const a = acts.find((y) => y.id === x.activityId);
-      return sessionRowHtml(x, { showActivity: true, name: a ? a.name : t.home.unknownActivity });
+      return sessionRowHtml(x, { showActivity: true, name: a ? a.name : t.common.unknownActivity });
     }).join('')
     : `<p class="list-empty">${t.home.recent.empty}</p>`;
 }
@@ -143,6 +143,44 @@ function dbError(err) {
   console.error(err);
   showToast(`${t.errors.dbFailed}: ${err.message || err}`);
 }
+
+// Brīdinājuma kartīte, ja nav Web Bluetooth (un nav imitācijas režīma) — redzama uzreiz, ne tikai pie klikšķa.
+function updateNoBluetooth() {
+  const el = q('#no-bt');
+  if (el) el.hidden = !(!state.mock && !HrmClient.isSupported());
+}
+
+// Instalēšanas kartīte: tikai ja Chrome iedevis beforeinstallprompt, nav standalone un nav noraidīta.
+async function updateInstallCard() {
+  const s = t.home;
+  const el = q('#install');
+  if (!el) return;
+  if (!state.installPrompt || isStandalone()) { el.hidden = true; return; }
+  const dismissed = await getSetting('installDismissed', false);
+  if (!alive || !q('#install')) return;
+  if (dismissed || !state.installPrompt) { el.hidden = true; return; }
+  el.innerHTML = `
+    <p class="install-title">${s.installTitle}</p>
+    <p class="hint">${s.installHint}</p>
+    <div class="input-row">
+      <button id="install-go" class="btn btn-accent" type="button">${s.installButton}</button>
+      <button id="install-later" class="btn" type="button">${s.installDismiss}</button>
+    </div>`;
+  el.hidden = false;
+  el.querySelector('#install-go').addEventListener('click', async () => {
+    const ev = state.installPrompt;
+    if (!ev) { el.hidden = true; return; }
+    state.installPrompt = null;
+    el.hidden = true;
+    try { await ev.prompt(); } catch (e) { console.warn('install prompt failed', e); }
+  });
+  el.querySelector('#install-later').addEventListener('click', () => {
+    el.hidden = true;
+    setSetting('installDismissed', true).catch(console.error);
+  });
+}
+
+const onInstallable = () => { updateInstallCard().catch(console.error); };
 
 async function onConnectClick() {
   const s = t.home;
@@ -211,6 +249,11 @@ export function render(container) {
       <a href="#record" class="btn btn-small">${s.recordingOpen}</a>
     </div>
     <div id="orphan" class="card" hidden></div>
+    <div id="no-bt" class="card warn" hidden>
+      <p class="error">${t.errors.noBluetooth}</p>
+      <p class="hint">${s.noBluetoothHint}</p>
+    </div>
+    <div id="install" class="card" hidden></div>
     <div class="card">
       <button id="btn-connect" class="btn" type="button">${s.connect}</button>
       <div class="row">
@@ -251,6 +294,9 @@ export function render(container) {
 
   if (state.client) wireView(state.client);
   updateView();
+  updateNoBluetooth();
+  window.addEventListener('pulss:installable', onInstallable);
+  updateInstallCard().catch(console.error);
   fillActivities().then(updateView).catch(dbError);
   checkOrphan().catch(dbError);
   fillRecent().catch(dbError);
@@ -259,5 +305,6 @@ export function render(container) {
 export function unmount() {
   alive = false;
   unwireView();
+  window.removeEventListener('pulss:installable', onInstallable);
   root = null;
 }

@@ -73,7 +73,8 @@ body.nav-hidden .view { padding-bottom: calc(16px + env(safe-area-inset-bottom))
   color: var(--muted);
   font-size: 0.75rem;
 }
-.nav a .ico { font-size: 1.4rem; line-height: 1; }
+.nav a .ico { display: inline-flex; line-height: 1; color: inherit; }
+.nav a .ico svg { width: 24px; height: 24px; display: block; }
 .nav a.active { color: var(--accent); }
 
 /* Cards & controls */
@@ -169,9 +170,8 @@ canvas.chart.session { height: 260px; }
 .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 8px; padding: 14px 12px; }
 .stats-grid > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .stats-grid strong { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
-.stats-grid .span2 { grid-column: span 2; }
 .label.small { font-size: 0.75rem; }
-@media (max-width: 360px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } .stats-grid .span2 { grid-column: span 2; } }
+@media (max-width: 360px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
 .session-list { padding: 4px 12px; }
 .session-row {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -206,6 +206,10 @@ body.nav-hidden .toast { bottom: calc(env(safe-area-inset-bottom) + 12px); }
 .hint { font-size: 0.95rem; }
 .hint a { color: var(--accent); }
 .error { color: var(--accent); }
+.card.warn { border-color: var(--accent); }
+.card.warn p:last-child, #install p:last-child { margin-bottom: 0; }
+.install-title { color: var(--text) !important; font-weight: 600; margin-bottom: 4px !important; }
+#install .input-row .btn { flex: 1; }
 .stack { display: flex; flex-direction: column; gap: 10px; }
 .list { list-style: none; margin: 0 0 12px; padding: 4px 12px; }
 .list-row { display: flex; align-items: center; gap: 8px; min-height: 52px; border-bottom: 1px solid var(--border); }

@@ -3,12 +3,27 @@
 // drawLineChart(canvas, {
 //   series: [{ points: [{x, y}], color?, label?, width? }],
 //   xLabel?(x) → string, yMin?, yMax?, padding?: {top,right,bottom,left},
-//   showDots?: boolean (tikai ja ≤40 punkti), yTicks?: number, xTicks?: number, emptyText?: string
+//   showDots?: boolean (tikai ja ≤40 punkti), yTicks?: number, xTicks?: number, emptyText?: string,
+//   xTickValues?: number[] — atzīmes tieši šajos x (dedup, ≤ MAX_X_TICK_VALUES; vienmēr pirmā un pēdējā);
+//                            ja dots, xTicks tiek ignorēts
 // })
 // liveChartAdapter(canvas, {windowSec}) → { push(t, bpm), clear(), redraw(), destroy() } — rullējošs logs.
 import { fmtDuration } from './format.js';
 
 const MAX_DOTS = 40;
+const MAX_X_TICK_VALUES = 6;
+
+// Dedup + kārto; ja vairāk par max — izvēlas vienmērīgi izkliedētas vērtības, vienmēr ar pirmo un pēdējo.
+export function pickTickValues(values, max = MAX_X_TICK_VALUES) {
+  const uniq = Array.from(new Set((values || []).filter((v) => Number.isFinite(v)))).sort((a, b) => a - b);
+  if (uniq.length <= max) return uniq;
+  const out = [];
+  for (let i = 0; i < max; i++) {
+    const idx = Math.round((i * (uniq.length - 1)) / (max - 1));
+    if (out[out.length - 1] !== uniq[idx]) out.push(uniq[idx]);
+  }
+  return out;
+}
 
 function cssVar(name, fallback) {
   try {
@@ -42,7 +57,7 @@ function setupCanvas(canvas) {
 export function drawLineChart(canvas, opts = {}) {
   const {
     series = [], xLabel, yMin: yMinOpt, yMax: yMaxOpt, padding, showDots = false,
-    yTicks = 5, xTicks = 5, emptyText = '',
+    yTicks = 5, xTicks = 5, xTickValues = null, emptyText = '',
   } = opts;
   const { ctx, cw, ch } = setupCanvas(canvas);
   const colors = {
@@ -97,17 +112,29 @@ export function drawLineChart(canvas, opts = {}) {
     ctx.fillText(String(Math.round(v * 100) / 100), x0 - 6, y);
   }
 
-  // x atzīmes
+  // x atzīmes: vai nu dotās vērtības (xTickValues), vai vienmērīgi sadalītas (xTicks)
   ctx.textBaseline = 'top';
-  const nx = Math.max(1, xTicks);
-  for (let i = 0; i <= nx; i++) {
-    const x = xMin + ((xMax - xMin) * i) / nx;
+  let ticks;
+  if (Array.isArray(xTickValues) && xTickValues.length) {
+    ticks = pickTickValues(xTickValues);
+  } else {
+    const nx = Math.max(1, xTicks);
+    ticks = [];
+    for (let i = 0; i <= nx; i++) ticks.push(xMin + ((xMax - xMin) * i) / nx);
+  }
+  // Vienāds teksts blakus atzīmēm (vairākas sesijas vienā dienā) → paliek tikai pirmā.
+  const drawn = [];
+  for (const x of ticks) {
     const label = xLabel ? xLabel(x) : String(Math.round(x));
-    ctx.textAlign = i === 0 ? 'left' : i === nx ? 'right' : 'center';
+    if (drawn.length && drawn[drawn.length - 1].label === label) continue;
+    drawn.push({ x, label });
+  }
+  drawn.forEach(({ x, label }, i) => {
+    ctx.textAlign = i === 0 ? 'left' : i === drawn.length - 1 ? 'right' : 'center';
     ctx.fillText(label, sx(x), y1 + 6);
     const gx = Math.round(sx(x)) + 0.5;
     ctx.beginPath(); ctx.moveTo(gx, y1); ctx.lineTo(gx, y1 + 3); ctx.stroke();
-  }
+  });
 
   // Sērijas
   ctx.save();

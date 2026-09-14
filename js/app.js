@@ -3,7 +3,7 @@ import { t } from './i18n.js';
 import { openDb, getSetting } from './db.js';
 import { Recorder } from './recorder.js';
 
-export const APP_VERSION = '0.4.0';
+export const APP_VERSION = '0.5.0';
 
 // Globālais stāvoklis (vienkāršs objekts; skati to importē tieši).
 export const state = {
@@ -13,6 +13,7 @@ export const state = {
   bpm: null,
   mock: new URLSearchParams(location.search).get('mock') === '1', // boot: OR saglabātais iestatījums
   recorder: null,      // Recorder (boot)
+  installPrompt: null, // BeforeInstallPromptEvent | null — Chrome instalēšanas piedāvājums (home.js kartīte)
 };
 
 const ROUTES = {
@@ -24,11 +25,20 @@ const ROUTES = {
   session:    () => import('./ui/session.js'),
 };
 
+// Navigācijas ikonas — iekļauti SVG (24×24, currentColor → aktīvās cilnes krāsa nāk no CSS).
+const SVG_ATTRS = 'xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false"';
+const ICONS = {
+  heart: `<svg ${SVG_ATTRS} fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>`,
+  trend: `<svg ${SVG_ATTRS} fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>`,
+  list: `<svg ${SVG_ATTRS} fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>`,
+  gear: `<svg ${SVG_ATTRS} fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
+};
+
 const NAV_ITEMS = [
-  { route: 'home',       label: t.nav.home,       ico: '♥' },
-  { route: 'analytics',  label: t.nav.analytics,  ico: '📈' },
-  { route: 'activities', label: t.nav.activities, ico: '☰' },
-  { route: 'settings',   label: t.nav.settings,   ico: '⚙' },
+  { route: 'home',       label: t.nav.home,       ico: ICONS.heart },
+  { route: 'analytics',  label: t.nav.analytics,  ico: ICONS.trend },
+  { route: 'activities', label: t.nav.activities, ico: ICONS.list },
+  { route: 'settings',   label: t.nav.settings,   ico: ICONS.gear },
 ];
 
 const viewEl = document.getElementById('view');
@@ -104,6 +114,21 @@ export function showToast(text, onTap) {
   toastEl.onclick = () => { toastEl.hidden = true; if (onTap) onTap(); };
   if (!onTap) setTimeout(() => { toastEl.hidden = true; }, 4000);
 }
+
+// Instalēšanas piedāvājums (Chrome/Android): notikumu aiztur un glabā state; home.js rāda kartīti.
+// Ja notikums nekad nepienāk (iOS, jau instalēts u.c.) — kartīte vienkārši neparādās.
+export function isStandalone() {
+  return (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+}
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  state.installPrompt = e;
+  window.dispatchEvent(new Event('pulss:installable'));
+});
+window.addEventListener('appinstalled', () => {
+  state.installPrompt = null;
+  window.dispatchEvent(new Event('pulss:installable'));
+});
 
 function registerSw() {
   if (!('serviceWorker' in navigator)) return;
