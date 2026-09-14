@@ -167,7 +167,8 @@ export function render(container) {
   container.querySelector('#mock').addEventListener('change', (e) => {
     state.mock = e.target.checked;
     setSetting('mock', state.mock).catch(console.error);
-    // TODO (3. solis): pārslēgt HrmClient <-> MockHrm
+    // Klients tiek radīts pie "Pievienot jostu" — esošais savienojums nemainās.
+    if (state.client && state.connected) showToast(s.mockSwitchHint);
   });
 
   refreshStorage(container);

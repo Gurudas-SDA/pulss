@@ -1,17 +1,18 @@
 // Pulss — sāknēšana, hash maršrutētājs, skatu montēšana, SW reģistrācija.
 import { t } from './i18n.js';
 import { openDb, getSetting } from './db.js';
+import { Recorder } from './recorder.js';
 
-export const APP_VERSION = '0.2.0';
+export const APP_VERSION = '0.3.0';
 
 // Globālais stāvoklis (vienkāršs objekts; skati to importē tieši).
 export const state = {
-  client: null,        // HrmClient | MockHrm (2./3. solis)
+  client: null,        // HrmClient | MockHrm — rada home.js pie "Pievienot jostu"
   connected: false,
   battery: null,       // 0..100 | null
   bpm: null,
   mock: new URLSearchParams(location.search).get('mock') === '1', // boot: OR saglabātais iestatījums
-  recorder: null,      // Recorder (3. solis)
+  recorder: null,      // Recorder (boot)
 };
 
 const ROUTES = {
@@ -111,6 +112,7 @@ async function boot() {
   try {
     await openDb();
     if (!state.mock) state.mock = !!(await getSetting('mock', false));
+    state.recorder = new Recorder();
   } catch (e) {
     console.error(e);
     renderNav('home');

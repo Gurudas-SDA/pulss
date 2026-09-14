@@ -1,15 +1,84 @@
-import { t } from '../i18n.js';
+import { t, fill } from '../i18n.js';
 import { state, showToast, escapeHtml } from '../app.js';
 import { listActivities, getSetting, setSetting } from '../db.js';
+import { createClient, HrmClient } from '../ble.js';
+import { Recorder } from '../recorder.js';
+import { fmtDateTime } from '../format.js';
 
 let alive = false;
+let root = null;
+let viewUnsubs = [];   // klienta notikumi → šis skats (atsaista unmount)
+let stateUnsubs = [];  // klienta notikumi → state (dzīvo, kamēr dzīvo klients)
 
-async function fillActivities(container) {
+// Pastāvīgā saite klients → state; reģistrē PIRMS skata klausītājiem, lai tie redz jauno state.
+function bindClientState(client) {
+  for (const u of stateUnsubs) u();
+  stateUnsubs = [
+    client.on('connected', () => { state.connected = true; }),
+    client.on('disconnected', () => { state.connected = false; state.bpm = null; }),
+    client.on('battery', ({ level }) => { state.battery = level; }),
+    client.on('hr', ({ bpm }) => { state.bpm = bpm; }),
+    client.on('error', ({ message }) => showToast(message)),
+  ];
+}
+
+function unwireView() {
+  for (const u of viewUnsubs) u();
+  viewUnsubs = [];
+}
+
+function wireView(client) {
+  unwireView();
+  viewUnsubs = [
+    client.on('connected', updateView),
+    client.on('disconnected', updateView),
+    client.on('battery', updateView),
+    client.on('hr', updateBpm),
+    client.on('status', ({ text }) => setStatus(text, false)),
+    client.on('error', updateView),
+  ];
+}
+
+function q(sel) { return root ? root.querySelector(sel) : null; }
+
+function setStatus(text, ok) {
+  const el = q('#status');
+  if (!el) return;
+  el.textContent = text;
+  el.classList.toggle('ok', !!ok);
+}
+
+function updateBpm() {
+  const el = q('#bpm-now');
+  if (el) el.textContent = state.bpm != null ? String(state.bpm) : '—';
+}
+
+function updateView() {
+  if (!alive || !root) return;
   const s = t.home;
+  setStatus(state.connected ? s.connected : s.notConnected, state.connected);
+  q('#btn-connect').textContent = state.connected ? s.disconnect : s.connect;
+
+  const bat = q('#battery');
+  const level = state.battery;
+  bat.querySelector('.fill').style.setProperty('--pct', `${level == null ? 0 : level}%`);
+  bat.querySelector('#battery-text').textContent = level == null ? s.batteryUnknown : `${level} %`;
+  bat.classList.toggle('low', level != null && level < 20);
+
+  q('#bpm-row').hidden = !state.connected;
+  updateBpm();
+
+  const sel = q('#activity');
+  const recording = state.recorder && state.recorder.state !== 'idle';
+  q('#btn-start').disabled = !(state.connected && !sel.hidden && sel.value && !recording);
+  q('#banner-recording').hidden = !recording;
+}
+
+async function fillActivities() {
   const [items, lastId] = await Promise.all([listActivities(), getSetting('lastActivityId', null)]);
   if (!alive) return;
-  const sel = container.querySelector('#activity');
-  const hint = container.querySelector('#activity-hint');
+  const sel = q('#activity');
+  const hint = q('#activity-hint');
   if (!items.length) {
     sel.hidden = true;
     hint.hidden = false;
@@ -23,17 +92,116 @@ async function fillActivities(container) {
   if (chosen !== lastId) await setSetting('lastActivityId', chosen);
 }
 
+async function checkOrphan() {
+  const s = t.home;
+  if (state.recorder.state !== 'idle') return;
+  const orphan = await Recorder.findOrphan();
+  if (!alive || !orphan) return;
+  const acts = await listActivities();
+  if (!alive) return;
+  const act = acts.find((a) => a.id === orphan.activityId);
+  const card = q('#orphan');
+  card.innerHTML = `
+    <p class="error">${escapeHtml(fill(s.orphanText, {
+      when: fmtDateTime(orphan.startedAt), activity: act ? act.name : s.unknownActivity,
+    }))}</p>
+    <div class="stack">
+      <button id="orphan-finish" class="btn btn-accent" type="button">${s.orphanFinish}</button>
+      <button id="orphan-discard" class="btn danger" type="button">${s.orphanDiscard}</button>
+    </div>`;
+  card.hidden = false;
+  const done = (msg) => { card.hidden = true; card.innerHTML = ''; showToast(msg); };
+  card.querySelector('#orphan-finish').addEventListener('click', () => {
+    Recorder.finalizeOrphan(orphan.id)
+      .then((ses) => done(ses && ses.sampleCount
+        ? fill(s.orphanFinished, { avg: ses.avgBpm, max: ses.maxBpm }) : t.record.savedEmpty))
+      .catch(dbError);
+  });
+  card.querySelector('#orphan-discard').addEventListener('click', () => {
+    Recorder.discardOrphan(orphan.id).then(() => done(s.orphanDeleted)).catch(dbError);
+  });
+}
+
+function dbError(err) {
+  console.error(err);
+  showToast(`${t.errors.dbFailed}: ${err.message || err}`);
+}
+
+async function onConnectClick() {
+  const s = t.home;
+  const btn = q('#btn-connect');
+  if (state.client && state.connected) {
+    await state.client.disconnect();
+    updateView();
+    return;
+  }
+  if (!state.mock && !HrmClient.isSupported()) { showToast(t.errors.noBluetooth); return; }
+  if (state.client) { try { await state.client.disconnect(); } catch (_) { /* jau atvienots */ } }
+
+  const client = createClient(state.mock);
+  state.client = client;
+  state.connected = false;
+  state.battery = null;
+  state.bpm = null;
+  bindClientState(client);
+  wireView(client);
+  if (state.recorder.state === 'recording') state.recorder.setClient(client);
+  setStatus(s.connecting, false);
+  btn.disabled = true;
+  try {
+    await client.connect();
+  } catch (e) {
+    console.warn('connect failed', e);
+    if (state.client === client) {
+      state.client = null;
+      for (const u of stateUnsubs) u();
+      stateUnsubs = [];
+      unwireView();
+      if (state.recorder.state === 'recording') state.recorder.setClient(null);
+    }
+    // NotFoundError = lietotājs aizvēra ierīču izvēli — nav kļūda.
+    if (!e || e.name !== 'NotFoundError') showToast(fill(t.errors.connectFailed, { msg: (e && e.message) || e }));
+  } finally {
+    btn.disabled = false;
+    updateView();
+  }
+}
+
+async function onStartClick() {
+  const sel = q('#activity');
+  if (state.recorder.state === 'recording') { location.hash = '#record'; return; }
+  if (!state.connected || !sel.value) return;
+  const btn = q('#btn-start');
+  btn.disabled = true;
+  try {
+    await state.recorder.start(sel.value, state.client);
+    location.hash = '#record';
+  } catch (e) {
+    dbError(e);
+    updateView();
+  }
+}
+
 export function render(container) {
   const s = t.home;
   alive = true;
+  root = container;
   container.innerHTML = `
     <h2>${s.title}</h2>
     <p>${s.intro}</p>
+    <div id="banner-recording" class="banner" hidden>
+      <span>${s.recordingBanner}</span>
+      <a href="#record" class="btn btn-small">${s.recordingOpen}</a>
+    </div>
+    <div id="orphan" class="card" hidden></div>
     <div class="card">
       <button id="btn-connect" class="btn" type="button">${s.connect}</button>
       <div class="row">
         <span class="label">${s.status}</span>
-        <span id="status" class="status">${state.connected ? s.connected : s.notConnected}</span>
+        <span>
+          <span id="badge-mock" class="badge" ${state.mock ? '' : 'hidden'}>${s.mockBadge}</span>
+          <span id="status" class="status">${s.notConnected}</span>
+        </span>
       </div>
       <div class="row">
         <span class="label">${s.battery}</span>
@@ -41,6 +209,10 @@ export function render(container) {
           <span class="bar"><span class="fill" style="--pct:0%"></span></span>
           <span id="battery-text">${s.batteryUnknown}</span>
         </span>
+      </div>
+      <div class="row" id="bpm-row" hidden>
+        <span class="label">${s.bpmNow}</span>
+        <span class="bpm-medium"><span id="bpm-now">—</span> <span class="unit">${t.record.bpmUnit}</span></span>
       </div>
     </div>
     <div class="card">
@@ -51,22 +223,21 @@ export function render(container) {
     <button id="btn-start" class="btn btn-accent btn-big" type="button" disabled>${s.start}</button>
   `;
 
-  container.querySelector('#activity').addEventListener('change', (e) => {
+  q('#activity').addEventListener('change', (e) => {
     setSetting('lastActivityId', e.target.value).catch(console.error);
+    updateView();
   });
-  container.querySelector('#btn-connect').addEventListener('click', () => {
-    // TODO (3. solis): state.client = state.mock ? new MockHrm() : new HrmClient(); await state.client.connect()
-  });
-  container.querySelector('#btn-start').addEventListener('click', () => {
-    location.hash = '#record';
-  });
+  q('#btn-connect').addEventListener('click', () => onConnectClick().catch(dbError));
+  q('#btn-start').addEventListener('click', () => onStartClick());
 
-  fillActivities(container).catch((err) => {
-    console.error(err);
-    showToast(`${t.errors.dbFailed}: ${err.message}`);
-  });
+  if (state.client) wireView(state.client);
+  updateView();
+  fillActivities().then(updateView).catch(dbError);
+  checkOrphan().catch(dbError);
 }
 
 export function unmount() {
   alive = false;
+  unwireView();
+  root = null;
 }

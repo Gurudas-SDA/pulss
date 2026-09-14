@@ -1,7 +1,7 @@
 // Pulss service worker.
 // CACHE_VERSION must be bumped on EVERY deploy — the browser only byte-compares
 // this registered script, so a change here is what triggers the update.
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const CACHE = 'pulss-' + CACHE_VERSION;
 const SHELL = [
   './',
@@ -10,6 +10,7 @@ const SHELL = [
   './css/app.css',
   './js/app.js',
   './js/i18n.js',
+  './js/emitter.js',
   './js/ble.js',
   './js/db.js',
   './js/format.js',
