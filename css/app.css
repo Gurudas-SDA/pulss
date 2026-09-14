@@ -141,6 +141,31 @@ canvas.chart { width: 100%; height: 200px; display: block; }
 .toast[hidden] { display: none; }
 body.nav-hidden .toast { bottom: calc(env(safe-area-inset-bottom) + 12px); }
 
+/* Lists, input rows, danger */
+.view h3 { margin: 16px 0 8px; font-size: 1rem; color: var(--muted); font-weight: 600; }
+.hint { font-size: 0.95rem; }
+.hint a { color: var(--accent); }
+.error { color: var(--accent); }
+.stack { display: flex; flex-direction: column; gap: 10px; }
+.list { list-style: none; margin: 0 0 12px; padding: 4px 12px; }
+.list-row { display: flex; align-items: center; gap: 8px; min-height: 52px; border-bottom: 1px solid var(--border); }
+.list-row:last-child { border-bottom: 0; }
+.list-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-actions { display: flex; gap: 2px; flex-shrink: 0; }
+.list-empty { padding: 12px 0; color: var(--muted); }
+.icon-btn {
+  min-width: 44px; min-height: 44px; padding: 0;
+  border: 0; border-radius: 8px; background: transparent; color: var(--text);
+  font: inherit; font-size: 1.1rem; cursor: pointer;
+}
+.icon-btn:active { background: var(--bg); }
+.icon-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.icon-btn.danger { color: var(--accent); }
+.btn.danger { color: var(--accent); border-color: var(--accent); }
+.input-row { display: flex; gap: 8px; }
+.input-row input { flex: 1; min-width: 0; }
+.input-row .btn { width: auto; flex-shrink: 0; }
+
 @media (min-width: 640px) {
   .nav { max-width: 640px; left: 50%; transform: translateX(-50%); border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
 }

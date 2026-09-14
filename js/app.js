@@ -1,7 +1,8 @@
 // Pulss — sāknēšana, hash maršrutētājs, skatu montēšana, SW reģistrācija.
 import { t } from './i18n.js';
+import { openDb, getSetting } from './db.js';
 
-export const APP_VERSION = '0.1.0';
+export const APP_VERSION = '0.2.0';
 
 // Globālais stāvoklis (vienkāršs objekts; skati to importē tieši).
 export const state = {
@@ -9,7 +10,7 @@ export const state = {
   connected: false,
   battery: null,       // 0..100 | null
   bpm: null,
-  mock: new URLSearchParams(location.search).get('mock') === '1',
+  mock: new URLSearchParams(location.search).get('mock') === '1', // boot: OR saglabātais iestatījums
   recorder: null,      // Recorder (3. solis)
 };
 
@@ -77,6 +78,12 @@ async function route() {
   window.scrollTo(0, 0);
 }
 
+export function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
 export function showToast(text, onTap) {
   toastEl.textContent = text;
   toastEl.hidden = false;
@@ -100,6 +107,19 @@ function registerSw() {
   navigator.serviceWorker.register('sw.js').catch((e) => console.warn('SW registration failed', e));
 }
 
-window.addEventListener('hashchange', route);
-route();
+async function boot() {
+  try {
+    await openDb();
+    if (!state.mock) state.mock = !!(await getSetting('mock', false));
+  } catch (e) {
+    console.error(e);
+    renderNav('home');
+    viewEl.innerHTML = `<div class="card"><p class="error">${t.errors.dbFailed}: ${escapeHtml(e.message || e)}</p></div>`;
+    return;
+  }
+  window.addEventListener('hashchange', route);
+  await route();
+}
+
+boot();
 registerSw();

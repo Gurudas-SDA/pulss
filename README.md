@@ -18,12 +18,13 @@ Pulss ir maza progresīvā tīmekļa lietotne (PWA) sirdsdarbības ierakstīšan
 Lokālais serveris (projekta mapē):
 
 ```
-python -m http.server 8899
+python -m http.server 8898
 ```
 
-Atver `http://localhost:8899/`.
+Atver `http://localhost:8898/`.
 
-- `?mock=1` — imitācijas režīms bez īstas jostas (tiks ieviests 3. solī).
+- `?mock=1` — imitācijas režīms bez īstas jostas (tiks ieviests 3. solī); tas pats ieslēdzams Iestatījumos (glabājas DB `settings.mock`).
+- Iestatījumi → Dati: JSON eksports/imports (apvienot vai aizstāt), CSV sesiju kopsavilkums (`;`, UTF-8 BOM — atveras Excel), "Dzēst visus datus".
 - **Pirms katras publicēšanas jāpalielina `CACHE_VERSION` failā `sw.js`** — citādi pārlūks paturēs veco kešoto versiju.
 - Visi ceļi ir relatīvi (bez sākuma `/`), lai lietotne strādātu GitHub Pages apakšceļā `/pulss/`.
 
@@ -32,7 +33,8 @@ Atver `http://localhost:8899/`.
 - `js/app.js` — sāknēšana, hash maršrutētājs, skatu montēšana, SW reģistrācija
 - `js/i18n.js` — visi UI teksti latviski
 - `js/ble.js` — Polar H10 BLE klients (`HrmClient`) un imitācija (`MockHrm`)
-- `js/db.js` — IndexedDB slānis
+- `js/db.js` — IndexedDB slānis (`pulss` v1: activities, sessions, samples, settings; eksports/imports)
+- `js/format.js` — datumu/laika/ilguma formatēšana (lv-LV)
 - `js/recorder.js` — ieraksta sesijas loģika
 - `js/charts.js` — grafiku zīmēšana uz `<canvas>`
 - `js/ui/*.js` — ekrāni (`render(container, params)`, `unmount()`)
