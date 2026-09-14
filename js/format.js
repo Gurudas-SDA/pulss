@@ -9,6 +9,12 @@ export function fmtDate(ts) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
+// 14.09 (īsais datums grafiku asīm)
+export function fmtDayMonth(ts) {
+  const d = new Date(ts);
+  return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}`;
+}
+
 // 13:05
 export function fmtTime(ts) {
   return new Date(ts).toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -17,6 +23,12 @@ export function fmtTime(ts) {
 // 2026-09-14 13:05
 export function fmtDateTime(ts) {
   return `${fmtDate(ts)} ${fmtTime(ts)}`;
+}
+
+// "Airēšana / Joga" → "airesana-joga" (failu nosaukumiem)
+export function slugify(s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'x';
 }
 
 // 1:02:05 vai 12:05

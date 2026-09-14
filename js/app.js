@@ -3,7 +3,7 @@ import { t } from './i18n.js';
 import { openDb, getSetting } from './db.js';
 import { Recorder } from './recorder.js';
 
-export const APP_VERSION = '0.3.0';
+export const APP_VERSION = '0.4.0';
 
 // Globālais stāvoklis (vienkāršs objekts; skati to importē tieši).
 export const state = {
@@ -83,6 +83,19 @@ export function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
   ));
+}
+
+// Lejupielāde caur pagaidu <a download> (JSON/CSV eksporti).
+export function downloadFile(name, content, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export function showToast(text, onTap) {

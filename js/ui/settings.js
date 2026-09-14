@@ -1,22 +1,10 @@
 import { t, fill } from '../i18n.js';
-import { APP_VERSION, state, showToast, escapeHtml } from '../app.js';
+import { APP_VERSION, state, showToast, escapeHtml, downloadFile } from '../app.js';
 import { exportAll, importAll, clearAll, listSessions, listActivities, setSetting } from '../db.js';
 import { fmtDate, fmtTime } from '../format.js';
 
 let pendingImport = null; // { name, data }
 let alive = false;
-
-function downloadFile(name, content, type) {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 
 async function exportJson() {
   const data = await exportAll();
@@ -25,7 +13,7 @@ async function exportJson() {
   showToast(fill(t.settings.exported, { name }));
 }
 
-function csvCell(v) {
+export function csvCell(v) {
   if (v == null) return '';
   const s = String(v);
   return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;

@@ -59,7 +59,7 @@ async function stopRecording() {
     const ses = await state.recorder.stop();
     showToast(ses && ses.sampleCount
       ? fill(s.saved, { avg: ses.avgBpm, max: ses.maxBpm }) : s.savedEmpty);
-    location.hash = '#home';
+    location.hash = ses ? `#session/${ses.id}` : '#home';
   } catch (e) {
     console.error(e);
     showToast(`${t.errors.dbFailed}: ${e.message || e}`);

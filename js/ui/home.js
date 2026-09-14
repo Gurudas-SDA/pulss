@@ -1,9 +1,12 @@
 import { t, fill } from '../i18n.js';
 import { state, showToast, escapeHtml } from '../app.js';
-import { listActivities, getSetting, setSetting } from '../db.js';
+import { listActivities, listSessions, getSetting, setSetting } from '../db.js';
 import { createClient, HrmClient } from '../ble.js';
 import { Recorder } from '../recorder.js';
 import { fmtDateTime } from '../format.js';
+import { sessionRowHtml } from './analytics.js';
+
+const RECENT_N = 3;
 
 let alive = false;
 let root = null;
@@ -122,6 +125,20 @@ async function checkOrphan() {
   });
 }
 
+async function fillRecent() {
+  const [sessions, acts] = await Promise.all([listSessions(), listActivities()]);
+  if (!alive) return;
+  const recent = sessions.filter((x) => x.status === 'done').slice(0, RECENT_N);
+  const el = q('#recent-list');
+  if (!el) return;
+  el.innerHTML = recent.length
+    ? recent.map((x) => {
+      const a = acts.find((y) => y.id === x.activityId);
+      return sessionRowHtml(x, { showActivity: true, name: a ? a.name : t.home.unknownActivity });
+    }).join('')
+    : `<p class="list-empty">${t.home.recent.empty}</p>`;
+}
+
 function dbError(err) {
   console.error(err);
   showToast(`${t.errors.dbFailed}: ${err.message || err}`);
@@ -221,6 +238,8 @@ export function render(container) {
       <p id="activity-hint" class="hint" hidden>${s.noActivities} <a href="#activities">${t.nav.activities}</a>.</p>
     </div>
     <button id="btn-start" class="btn btn-accent btn-big" type="button" disabled>${s.start}</button>
+    <div class="card-title"><h3>${s.recent.title}</h3><a href="#analytics" class="link">${s.recent.all}</a></div>
+    <div id="recent-list" class="card session-list"></div>
   `;
 
   q('#activity').addEventListener('change', (e) => {
@@ -234,6 +253,7 @@ export function render(container) {
   updateView();
   fillActivities().then(updateView).catch(dbError);
   checkOrphan().catch(dbError);
+  fillRecent().catch(dbError);
 }
 
 export function unmount() {
