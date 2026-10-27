@@ -5,6 +5,7 @@ import { createClient, HrmClient } from '../ble.js';
 import { Recorder } from '../recorder.js';
 import { fmtDateTime } from '../format.js';
 import { sessionRowHtml, bindRowDelete } from './analytics.js';
+import { runAutoBackup } from './record.js';
 
 const RECENT_N = 3;
 
@@ -110,15 +111,25 @@ async function checkOrphan() {
       when: fmtDateTime(orphan.startedAt), activity: act ? act.name : t.common.unknownActivity,
     }))}</p>
     <div class="stack">
-      <button id="orphan-finish" class="btn btn-accent" type="button">${s.orphanFinish}</button>
+      <button id="orphan-resume" class="btn btn-accent" type="button">${s.orphanResume}</button>
+      <button id="orphan-finish" class="btn" type="button">${s.orphanFinish}</button>
       <button id="orphan-discard" class="btn danger" type="button">${s.orphanDiscard}</button>
     </div>`;
   card.hidden = false;
   const done = (msg) => { card.hidden = true; card.innerHTML = ''; showToast(msg); };
+  card.querySelector('#orphan-resume').addEventListener('click', () => {
+    if (!state.client || !state.connected) { showToast(s.orphanResumeNeedBelt); return; }
+    state.recorder.resume(orphan.id, state.client)
+      .then(() => { done(s.orphanResumed); location.hash = '#record'; })
+      .catch(dbError);
+  });
   card.querySelector('#orphan-finish').addEventListener('click', () => {
     Recorder.finalizeOrphan(orphan.id)
-      .then((ses) => done(ses && ses.sampleCount
-        ? fill(s.orphanFinished, { avg: ses.avgBpm, max: ses.maxBpm }) : t.record.savedEmpty))
+      .then((ses) => {
+        done(ses && ses.sampleCount
+          ? fill(s.orphanFinished, { avg: ses.avgBpm, max: ses.maxBpm }) : t.record.savedEmpty);
+        if (ses) runAutoBackup();
+      })
       .catch(dbError);
   });
   card.querySelector('#orphan-discard').addEventListener('click', () => {

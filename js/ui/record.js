@@ -4,6 +4,8 @@ import { listActivities } from '../db.js';
 import { fmtDuration } from '../format.js';
 import { liveChartAdapter } from '../charts.js';
 import { MockHrm } from '../ble.js';
+import { autoBackup } from '../backup.js';
+import { GAP_SEC } from '../gaps.js';
 
 const LIVE_WINDOW_SEC = 300;
 
@@ -45,7 +47,7 @@ function setConn(text, ok) {
 }
 
 function setBusy(busy) {
-  for (const id of ['#btn-stop', '#btn-discard', '#btn-sim']) {
+  for (const id of ['#btn-stop', '#btn-discard', '#btn-sim', '#btn-sim-gap']) {
     const b = q(id);
     if (b) b.disabled = busy;
   }
@@ -60,11 +62,20 @@ async function stopRecording() {
     showToast(ses && ses.sampleCount
       ? fill(s.saved, { avg: ses.avgBpm, max: ses.maxBpm }) : s.savedEmpty);
     location.hash = ses ? `#session/${ses.id}` : '#home';
+    if (ses) runAutoBackup();
   } catch (e) {
     console.error(e);
     showToast(`${t.errors.dbFailed}: ${e.message || e}`);
     setBusy(false);
   }
+}
+
+// Automātiska rezerves kopija pēc pabeigta ieraksta (ja ieslēgta iestatījumos).
+export function runAutoBackup() {
+  const s = t.record;
+  autoBackup()
+    .then((name) => { if (name) setTimeout(() => showToast(fill(s.backupSaved, { name })), 4200); })
+    .catch((e) => { console.error(e); showToast(fill(s.backupFailed, { msg: e.message || e })); });
 }
 
 async function discardRecording() {
@@ -106,7 +117,8 @@ export function render(container) {
     <p id="rec-hint" class="hint" hidden></p>
     <div class="stack">
       <button id="btn-stop" class="btn btn-accent btn-big" type="button">${s.stop}</button>
-      ${isMock ? `<button id="btn-sim" class="btn" type="button">${s.simulateDisconnect}</button>` : ''}
+      ${isMock ? `<button id="btn-sim" class="btn" type="button">${s.simulateDisconnect}</button>
+      <button id="btn-sim-gap" class="btn" type="button">${s.simulateGap}</button>` : ''}
       <button id="btn-discard" class="btn btn-link danger" type="button">${s.discard}</button>
     </div>
   `;
@@ -116,7 +128,7 @@ export function render(container) {
   timer = setInterval(tick, 1000);
   tick();
 
-  chart = liveChartAdapter(q('#rec-chart'), { windowSec: LIVE_WINDOW_SEC, emptyText: s.chartEmpty });
+  chart = liveChartAdapter(q('#rec-chart'), { windowSec: LIVE_WINDOW_SEC, emptyText: s.chartEmpty, breakGap: GAP_SEC });
   const samples = rec.samples;
   if (samples.length) {
     const cutoff = samples[samples.length - 1].t - LIVE_WINDOW_SEC;
@@ -144,7 +156,13 @@ export function render(container) {
 
   q('#btn-stop').addEventListener('click', () => { stopRecording(); });
   q('#btn-discard').addEventListener('click', () => { discardRecording(); });
-  if (isMock) q('#btn-sim').addEventListener('click', () => client.simulateDisconnect());
+  if (isMock) {
+    q('#btn-sim').addEventListener('click', () => client.simulateDisconnect());
+    q('#btn-sim-gap').addEventListener('click', () => client.simulateDisconnect(20000));
+  }
+  // Atgriežoties priekšplānā: parāda, cik paraugu saņemts fonā (vai fona ieraksts strādāja).
+  bgCount = rec.session.bgSamples || 0;
+  document.addEventListener('visibilitychange', onVisibility);
 
   listActivities().then((acts) => {
     if (!alive) return;
@@ -153,8 +171,24 @@ export function render(container) {
   }).catch(console.error);
 }
 
+let bgCount = 0;
+let hiddenAt = 0;
+function onVisibility() {
+  const rec = state.recorder;
+  if (!alive || !rec || !rec.session) return;
+  if (document.visibilityState === 'hidden') {
+    bgCount = rec.session.bgSamples || 0;
+    hiddenAt = Date.now();
+    return;
+  }
+  if (Date.now() - hiddenAt < 10000) return; // īsa pārslēgšanās — nav ko ziņot
+  const n = (rec.session.bgSamples || 0) - bgCount;
+  showToast(fill(t.record.bgBack, { n }));
+}
+
 export function unmount() {
   alive = false;
+  document.removeEventListener('visibilitychange', onVisibility);
   if (timer) clearInterval(timer);
   timer = null;
   for (const u of unsubs) u();

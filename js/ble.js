@@ -161,6 +161,18 @@ export class HrmClient extends Emitter {
     }, delay);
   }
 
+  // Ja savienojums zudis un atkārtotas savienošanās cikls vairs nerit (piem., tas padevās,
+  // kamēr lietotne bija fonā), sāk to no jauna. Recorder sauc ieraksta laikā un pēc
+  // atgriešanās priekšplānā — ierīces izvēle (žests) nav vajadzīga, jo device jau zināms.
+  ensureConnected() {
+    if (this.connected || this._reconnecting || this._manualDisconnect || !this.device) return false;
+    this._reconnecting = true;
+    this._retryStart = Date.now();
+    this._retryAttempt = 0;
+    this._scheduleRetry();
+    return true;
+  }
+
   async disconnect() {
     this._manualDisconnect = true;
     this._stopRetry();
@@ -217,8 +229,11 @@ export class MockHrm extends Emitter {
     this.emit('hr', { bpm, rr: [Math.round(60000 / bpm)], ts: Date.now() });
   }
 
-  // Testa ceļš UI: atvienojas, 3 s klusē, tad "atkārtoti savienojas".
-  simulateDisconnect() {
+  ensureConnected() { return false; }
+
+  // Testa ceļš UI: atvienojas, ms (noklusēti 3 s) klusē, tad "atkārtoti savienojas".
+  // Ar ms > 10 s ierakstā rodas pārtraukums (gaps.js), kā pēc fonā apturēta pārlūka.
+  simulateDisconnect(ms = 3000) {
     if (!this.connected) return;
     this.connected = false;
     this._paused = true;
@@ -229,7 +244,7 @@ export class MockHrm extends Emitter {
       this._paused = false;
       this.connected = true;
       this.emit('connected', { name: this.name });
-    }, 3000);
+    }, ms);
   }
 
   _clearTimers() {

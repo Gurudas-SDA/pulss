@@ -1,7 +1,9 @@
 // Līniju grafiki uz <canvas> (tīrs Canvas 2D, bez bibliotēkām).
 //
 // drawLineChart(canvas, {
-//   series: [{ points: [{x, y}], color?, label?, width? }],
+//   series: [{ points: [{x, y}], color?, label?, width?, breakGap? }],
+//            breakGap: ja x atstarpe starp blakus punktiem > breakGap, līnija tiek pārtraukta
+//   gaps?: [{from, to}] — x intervāli, kas iekrāsoti kā pārtraukumi (ieraksta spraugas),
 //   xLabel?(x) → string, yMin?, yMax?, padding?: {top,right,bottom,left},
 //   showDots?: boolean (tikai ja ≤40 punkti), yTicks?: number, xTicks?: number, emptyText?: string,
 //   xTickValues?: number[] — atzīmes tieši šajos x (dedup, ≤ MAX_X_TICK_VALUES; vienmēr pirmā un pēdējā);
@@ -57,7 +59,7 @@ function setupCanvas(canvas) {
 export function drawLineChart(canvas, opts = {}) {
   const {
     series = [], xLabel, yMin: yMinOpt, yMax: yMaxOpt, padding, showDots = false,
-    yTicks = 5, xTicks = 5, xTickValues = null, emptyText = '',
+    yTicks = 5, xTicks = 5, xTickValues = null, emptyText = '', gaps = null,
   } = opts;
   const { ctx, cw, ch } = setupCanvas(canvas);
   const colors = {
@@ -139,6 +141,15 @@ export function drawLineChart(canvas, opts = {}) {
   // Sērijas
   ctx.save();
   ctx.beginPath(); ctx.rect(x0 - 1, y0 - 1, x1 - x0 + 2, y1 - y0 + 2); ctx.clip();
+  if (Array.isArray(gaps) && gaps.length) {
+    ctx.fillStyle = colors.border;
+    ctx.globalAlpha = 0.6;
+    for (const g of gaps) {
+      const gx0 = sx(g.from); const gx1 = sx(g.to);
+      ctx.fillRect(gx0, y0, Math.max(1, gx1 - gx0), y1 - y0);
+    }
+    ctx.globalAlpha = 1;
+  }
   for (const s of series) {
     const pts = (s.points || []).slice().sort((a, b) => a.x - b.x);
     if (!pts.length) continue;
@@ -149,7 +160,11 @@ export function drawLineChart(canvas, opts = {}) {
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
     ctx.beginPath();
-    pts.forEach((p, i) => { if (i === 0) ctx.moveTo(sx(p.x), sy(p.y)); else ctx.lineTo(sx(p.x), sy(p.y)); });
+    const brk = s.breakGap > 0 ? s.breakGap : Infinity;
+    pts.forEach((p, i) => {
+      if (i === 0 || p.x - pts[i - 1].x > brk) ctx.moveTo(sx(p.x), sy(p.y));
+      else ctx.lineTo(sx(p.x), sy(p.y));
+    });
     ctx.stroke();
     if (showDots && pts.length <= MAX_DOTS) {
       for (const p of pts) { ctx.beginPath(); ctx.arc(sx(p.x), sy(p.y), 3, 0, Math.PI * 2); ctx.fill(); }
@@ -178,7 +193,7 @@ export function drawLineChart(canvas, opts = {}) {
 }
 
 // Rullējošs "dzīvais" grafiks: pēdējās windowSec sekundes, ≤2 pārzīmēšanas sekundē.
-export function liveChartAdapter(canvas, { windowSec = 300, emptyText = '', color } = {}) {
+export function liveChartAdapter(canvas, { windowSec = 300, emptyText = '', color, breakGap } = {}) {
   const MIN_GAP_MS = 500;
   let points = [];
   let lastDraw = 0;
@@ -188,7 +203,7 @@ export function liveChartAdapter(canvas, { windowSec = 300, emptyText = '', colo
   function draw() {
     lastDraw = performance.now();
     drawLineChart(canvas, {
-      series: [{ points, color }],
+      series: [{ points, color, breakGap }],
       xLabel: (x) => fmtDuration(x),
       emptyText,
       xTicks: 4,

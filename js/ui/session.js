@@ -6,6 +6,7 @@ import { getSession, listSamples, listActivities, putSession, deleteSession } fr
 import { fmtDate, fmtTime, fmtDateTime, fmtDuration, slugify } from '../format.js';
 import { drawLineChart } from '../charts.js';
 import { csvCell } from './settings.js';
+import { findGaps, totalGapSec, GAP_SEC } from '../gaps.js';
 
 const SMOOTH_FROM = 600;
 const SMOOTH_WINDOW = 15;
@@ -16,6 +17,7 @@ let alive = false;
 let session = null;
 let samples = [];
 let activities = [];
+let gaps = [];
 let onResize = null;
 
 function q(sel) { return root ? root.querySelector(sel) : null; }
@@ -45,11 +47,11 @@ function drawChart() {
   const raw = samples.map((x) => ({ x: x.t, y: x.bpm }));
   const series = raw.length > SMOOTH_FROM
     ? [
-      { points: raw, color: RAW_COLOR, width: 1, label: s.pulse },
-      { points: movingAverage(raw, SMOOTH_WINDOW), label: s.smoothed, width: 2 },
+      { points: raw, color: RAW_COLOR, width: 1, label: s.pulse, breakGap: GAP_SEC },
+      { points: movingAverage(raw, SMOOTH_WINDOW), label: s.smoothed, width: 2, breakGap: GAP_SEC },
     ]
-    : [{ points: raw, label: s.pulse }];
-  drawLineChart(canvas, { series, xLabel: fmtDuration, xTicks: 4, emptyText: s.chartEmpty });
+    : [{ points: raw, label: s.pulse, breakGap: GAP_SEC }];
+  drawLineChart(canvas, { series, gaps, xLabel: fmtDuration, xTicks: 4, emptyText: s.chartEmpty });
 }
 
 function val(v) { return v == null ? '—' : String(v); }
@@ -116,6 +118,9 @@ function renderSession(container) {
       ${stat(s.max, val(x.maxBpm))}
       ${stat(s.min, val(x.minBpm))}
       ${stat(s.samples, val(x.sampleCount ?? samples.length))}
+      ${stat(s.gaps, gaps.length
+        ? fill(s.gapsValue, { n: gaps.length, dur: fmtDuration(totalGapSec(gaps)) }) : s.gapsNone)}
+      ${x.bgSec ? stat(s.background, fill(s.backgroundValue, { dur: fmtDuration(x.bgSec), n: x.bgSamples || 0 })) : ''}
     </div>
     <div class="card">
       <button id="btn-delete" class="btn danger" type="button">🗑 ${s.remove}</button>
@@ -152,6 +157,7 @@ export function render(container, params) {
     if (!ses) { renderNotFound(container); return; }
     session = ses;
     samples = smp;
+    gaps = Array.isArray(ses.gaps) ? ses.gaps : findGaps(smp);
     activities = acts;
     renderSession(container);
   }).catch((e) => {
@@ -167,4 +173,5 @@ export function unmount() {
   root = null;
   session = null;
   samples = [];
+  gaps = [];
 }

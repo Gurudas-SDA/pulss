@@ -1,16 +1,56 @@
 import { t, fill } from '../i18n.js';
 import { APP_VERSION, state, showToast, escapeHtml, downloadFile } from '../app.js';
-import { exportAll, importAll, clearAll, listSessions, listActivities, setSetting } from '../db.js';
-import { fmtDate, fmtTime } from '../format.js';
+import { importAll, clearAll, listSessions, listActivities, getSetting, setSetting } from '../db.js';
+import { fmtDate, fmtTime, fmtDateTime } from '../format.js';
+import {
+  makeBackup, isPersisted, requestPersist, isBackupStale, backupAgeDays,
+  AUTO_BACKUP_KEY, LAST_BACKUP_KEY,
+} from '../backup.js';
+import { KEEPALIVE_KEY } from '../recorder.js';
 
 let pendingImport = null; // { name, data }
 let alive = false;
 
-async function exportJson() {
-  const data = await exportAll();
-  const name = `pulss-export-${fmtDate(Date.now())}.json`;
-  downloadFile(name, JSON.stringify(data, null, 1), 'application/json');
+async function exportJson(container) {
+  const name = await makeBackup({ name: `pulss-export-${fmtDate(Date.now())}.json`, pretty: true });
   showToast(fill(t.settings.exported, { name }));
+  refreshSafety(container);
+}
+
+async function backupNow(container) {
+  const name = await makeBackup();
+  showToast(fill(t.record.backupSaved, { name }));
+  refreshSafety(container);
+}
+
+// Datu drošības karte: pastāvīgā glabāšana, pēdējā kopija, brīdinājums (>7 d.).
+async function refreshSafety(container) {
+  const s = t.settings;
+  const [persisted, auto, lastAt, sessions, keep] = await Promise.all([
+    isPersisted(), getSetting(AUTO_BACKUP_KEY, true), getSetting(LAST_BACKUP_KEY, null),
+    listSessions(), getSetting(KEEPALIVE_KEY, true),
+  ]);
+  if (!alive) return;
+  const q = (sel) => container.querySelector(sel);
+  const pEl = q('#persist');
+  pEl.textContent = persisted === true ? s.persistYes : persisted === false ? s.persistNo : s.persistUnknown;
+  pEl.classList.toggle('ok', persisted === true);
+  pEl.classList.toggle('error', persisted === false);
+  q('#btn-persist').hidden = persisted !== false;
+  q('#auto-backup').checked = !!auto;
+  q('#keep-alive').checked = !!keep;
+  const now = Date.now();
+  q('#last-backup').textContent = lastAt
+    ? fill(s.lastBackupAgo, { date: fmtDateTime(lastAt), days: backupAgeDays(lastAt, now) })
+    : s.lastBackupNever;
+  const warn = q('#backup-warn');
+  if (isBackupStale(lastAt, now, sessions.some((x) => x.status === 'done'))) {
+    warn.querySelector('p').textContent = lastAt
+      ? fill(s.backupStale, { days: backupAgeDays(lastAt, now) }) : s.backupNeverWarn;
+    warn.hidden = false;
+  } else {
+    warn.hidden = true;
+  }
 }
 
 export function csvCell(v) {
@@ -63,6 +103,7 @@ async function runImport(mode, container) {
     showToast(fill(s.imported, counts));
     cancelImport(container);
     refreshStorage(container);
+    refreshSafety(container);
   } catch (e) {
     showToast(fill(s.importFailed, { msg: e.message }));
   }
@@ -91,6 +132,36 @@ export function render(container) {
   container.innerHTML = `
     <h2>${s.title}</h2>
     <p>${s.placeholder}</p>
+
+    <h3>${s.safety}</h3>
+    <div id="backup-warn" class="card warn" hidden><p class="error"></p></div>
+    <div class="card stack">
+      <div class="row">
+        <span class="label">${s.persist}</span>
+        <span id="persist" class="status">—</span>
+      </div>
+      <button id="btn-persist" class="btn" type="button" hidden>${s.persistAsk}</button>
+      <p class="hint">${s.persistHint}</p>
+      <label class="check">
+        <input type="checkbox" id="auto-backup">
+        <span>${s.autoBackup}</span>
+      </label>
+      <p class="hint">${s.autoBackupHint}</p>
+      <div class="row">
+        <span class="label">${s.lastBackup}</span>
+        <span id="last-backup">—</span>
+      </div>
+      <button id="btn-backup-now" class="btn btn-accent" type="button">${s.backupNow}</button>
+    </div>
+
+    <h3>${s.recording}</h3>
+    <div class="card">
+      <label class="check">
+        <input type="checkbox" id="keep-alive">
+        <span>${s.keepAlive}</span>
+      </label>
+      <p class="hint">${s.keepAliveHint}</p>
+    </div>
 
     <h3>${s.data}</h3>
     <div class="card stack">
@@ -133,7 +204,19 @@ export function render(container) {
     showToast(`${t.errors.dbFailed}: ${err.message}`);
   });
 
-  container.querySelector('#btn-export-json').addEventListener('click', guard(exportJson));
+  container.querySelector('#btn-export-json').addEventListener('click', guard(() => exportJson(container)));
+  container.querySelector('#btn-backup-now').addEventListener('click', guard(() => backupNow(container)));
+  container.querySelector('#btn-persist').addEventListener('click', guard(async () => {
+    const ok = await requestPersist();
+    showToast(ok ? s.persistGranted : s.persistDenied);
+    refreshSafety(container);
+  }));
+  container.querySelector('#auto-backup').addEventListener('change', (e) => {
+    setSetting(AUTO_BACKUP_KEY, e.target.checked).catch(console.error);
+  });
+  container.querySelector('#keep-alive').addEventListener('change', (e) => {
+    setSetting(KEEPALIVE_KEY, e.target.checked).catch(console.error);
+  });
   container.querySelector('#btn-export-csv').addEventListener('click', guard(exportCsv));
   const fileInput = container.querySelector('#import-file');
   container.querySelector('#btn-import').addEventListener('click', () => fileInput.click());
@@ -151,6 +234,7 @@ export function render(container) {
     container.querySelector('#mock').checked = state.mock;
     showToast(s.cleared);
     refreshStorage(container);
+    refreshSafety(container);
   }));
   container.querySelector('#mock').addEventListener('change', (e) => {
     state.mock = e.target.checked;
@@ -160,6 +244,7 @@ export function render(container) {
   });
 
   refreshStorage(container);
+  refreshSafety(container).catch(console.error);
 }
 
 export function unmount() {

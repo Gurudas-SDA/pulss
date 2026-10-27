@@ -2,8 +2,10 @@
 import { t } from './i18n.js';
 import { openDb, getSetting } from './db.js';
 import { Recorder } from './recorder.js';
+import { requestPersist } from './backup.js';
+export { downloadFile } from './download.js';
 
-export const APP_VERSION = '0.5.1';
+export const APP_VERSION = '0.6.0';
 
 // Globālais stāvoklis (vienkāršs objekts; skati to importē tieši).
 export const state = {
@@ -95,19 +97,6 @@ export function escapeHtml(s) {
   ));
 }
 
-// Lejupielāde caur pagaidu <a download> (JSON/CSV eksporti).
-export function downloadFile(name, content, type) {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
 export function showToast(text, onTap) {
   toastEl.textContent = text;
   toastEl.hidden = false;
@@ -158,6 +147,9 @@ async function boot() {
     return;
   }
   window.addEventListener('hashchange', route);
+  // Pastāvīga glabāšana: lūdz katrā atvēršanā (Chrome lemj pats, dialoga nav; ja jau
+  // piešķirta — nekas nenotiek).
+  requestPersist().catch(() => {});
   await route();
 }
 
